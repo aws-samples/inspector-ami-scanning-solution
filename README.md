@@ -7,6 +7,7 @@ There are two separate solutions and therefore separate cloudformation templates
 2. Scheduled-Multi-AMI-Scanner = used for fetching AMI's to be scanned by on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
 
 Solution Architecture Overviews
+
 Single AMI Scanner Solution
 ![Single AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/35ff5f4d-3f70-4241-9df4-9a295ede94aa)
 
