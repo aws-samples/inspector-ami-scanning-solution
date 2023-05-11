@@ -42,13 +42,21 @@ Step 1: Deploy the CloudFormation Template
 Make sure you deploy the CloudFormation template provided for Single AMI Scanning within the AWS account and AWS Region where you want to test this solution.
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account.
 The CloudFormation template requires the following parameters to be configured prior to deploying successfully:
+
 InspectorReportFormat – Specifies the report format which can either 'CSV' or 'JSON’
+
 InstanceType - Used to define which instance type to deploy the AMI to for temporary scanning purposes 
+
 InstanceSubnetID - the subnet ID used to launch the temporary EC2 instance into
+
 ScannedAMIID – the id of the AMI which is to be scanned by Inspector
+
 S3ReportBucketName – the name of the S3 bucket to be created as part of the solution
+
 KmsKeyAdministratorRole - Used to define which exiting IAM role needs to have Administrator access to the Kms key created which provides access to encrypt and decrypt the Inspector Report
+
 SnsTopic – A name of a new topic to be created which is used to define which SNS topic notifications are published to 
+
 2.	Review the stack name and the parameters for the template. 
 3.	Scroll to the bottom of the Quick create stack screen and select the checkbox next to I acknowledge that AWS CloudFormation might create IAM resources.
 4.	Choose Create stack. The deployment of this CloudFormation stack will take 3–5 minutes. 
@@ -58,17 +66,27 @@ After the CloudFormation stack has deployed successfully, you can use the deploy
 Step 2: Running the first step functions workflow
 
 The first Step Functions state machine requires parameters to be passed in which will be done with the SingleAMI Lambda function. The Lambda function can be started by creating a test event and passing the correct JSON text and parameters. The following parameters will be available in the output section of the CloudFormation stack which the solution deployed. 
+
 •	AmiId - the ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
+
 •	EC2InstanceProfile - the ARN of the EC2 instance profile which was created by the CloudFormation stack.
+
 •	InstanceType - the type of EC2 instance to use for deployment. For the purposes of testing and to enable rapid scanning, it is recommended this instance has enough resources available.
+
 •	KmsKeyName - the ARN of the KMS key to be used for encrypting and decrypting the Inspector Report which was created by the CloudFormation stack.
+
 •	S3Bucket - The S3 bucket name where the Amazon Inspector reports will be exported to which was created by the CloudFormation stack.
+
 •	S3ReportFormat - either JSON or CSV report formats are valid.
+
 •	SnsTopc - the ARN of the SNS topic which was created earlier for sending notifications to which was created by the CloudFormation stack.
+
 •	StateMachineArn – the ARN of the first Step Functions state machine which will be executed first by the Lambda function.
+
 •	SubnetId - the VPC subnet ID where the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet created specifically for this scanning purpose.
 
 An example parameter configuration and JSON which can be used to execute the Lambda function is as follows:
+
 {
 "AmiId" : "ami-abcdef01234567890",
 "Ec2InstanceProfile" : "arn:aws:iam:: 111122223333:instance-profile/Ec2InstanceLaunchRole",
@@ -83,9 +101,11 @@ An example parameter configuration and JSON which can be used to execute the Lam
 
 
 Once the first state machine is finished, the EventBridge rule will listen for the successful Inspector scan event. A SNS notification will appear similar to this example;
+
 {"AWS Inspector AMI Scan status":"EC2 instance","For AMI":"ami-abcdef01234567890","Temporarily launched AMI using instance":"i-abcdef01234567890"}
 
 Once Inspector has finished scanning the EC2 instance and the second state machine completes successfully, the Inspector finding report will appear in the S3 bucket and notifications will appear on the SNS topic which was created. The SNS notification will appear similar to this example;
+
 {"AWS Inspector AMI Scan completed":"Successfully","For AMI":"ami-abcdef01234567890","AWS Inspector report located at S3 Bucket":"DOC-EXAMPLE-BUCKET-111122223333","Temporarily launched AMI using instance":"i-abcdef01234567890"}
 
 
