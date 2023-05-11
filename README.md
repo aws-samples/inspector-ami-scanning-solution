@@ -10,6 +10,7 @@ Solution Architecture Overviews
 
 Single AMI Scanner Solution
 
+![Single AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/8f81e598-821c-40c3-a1c6-09b2b14d1b53)
 
 
 A Lambda function will be used to define and pass parameters to the first AWS Step Functions step and workflow. This workflow step function will launch a temporary EC2 instance from the AMI which has been chosen to be scanned and tag the temporary EC2 instance. An EventBridge rule will be created to listen for the successful Inspector scan event message for the temporary EC2 instance. This is required as the Inspector scanning process of the temporary EC2 instance could take some time to complete depending on a number of factors including instance operating system and account limitations.
@@ -112,7 +113,7 @@ Once Inspector has finished scanning the EC2 instance and the second state machi
 
 Multi-AMI Scheduled Scanner Solution
 
-
+![Multiple AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/7afc3368-3c7b-45be-abbc-cfc2142f69f6)
 
 We can extend the solution to handle multiple AMIs and automatic scheduling. The extended solution triggers a Lambda function on a scheduled basis which identifies AMIs with the appropriate tags and passes parameters to the Step Functions workflow. The rest of the solution is unchanged from the first part of the solution.
 
