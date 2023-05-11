@@ -47,28 +47,6 @@ A Lambda function will be used to define and pass parameters to the first AWS St
 
 Once the Inspector scan has completed successfully, the EventBridge rule will match the successful scan event and trigger the second Step Functions state machine. The second state machine will invoke a Lambda function to export the Inspector findings for the AMI to an Amazon S3Amazon S3 bucket. Another Lambda function is triggered to add a tag to the AMI which has been scanned which includes the location of the Amazon S3 bucket where the Inspector findings are located. A notification is sent to an Amazon SNSAmazon SNS topic with the AMI which was scanned, the status, the S3 bucket location for the report findings and the temporary EC2 instance id which was launched. 
 
-The high level workflow of the solution is as follows;
-1.	You provide parameters to the SingleAMI Lambda function as JSON. 
-2.	A Lambda function invokes the first AWS Step Functions state machine.
-3.	The first AWS Step Functions workflow deploys a temporary EC2 instance from the AMI which is defined.
-4.	A Lambda function is invoked to create an EventBridge rule.
-5.	An EventBridge rule is created to listen for the successful Inspector scanned event of the temporary EC2 instance.
-6.	A Lambda function is invoked to tag the EC2 instance.
-7.	The temporary EC2 instance is tagged showing the Inspector scanning is in progress
-8.	The first AWS Step Functions workflow will send a notification to a SNS topic.
-9.	The EventBridge rule parses the required parameters and triggers the second AWS Step Functions state machine.
-10.	A Lambda function is invoked to generate an Inspector report and export the findings to a S3 bucket.
-11.	The scanned AMI Inspector results are saved to a S3 bucket.
-12.	The AWS Step Functions workflow will terminate the temporary EC2 instance.
-13.	A Lambda function is invoked to delete the temporary EventBridge rule.
-14.	The temporary EventBridge rule and targets are deleted.
-15.	A Lambda function is invoked to tag the AMI
-16.	The scanned AMI is updated with tagging metadata.
-17.	The second AWS Step Functions workflow will send a notification to a SNS topic.
-
-
-#### Prerequisite: 
-Activate Amazon Inspector in your AWS Account
 
 #### Step 1: Deploy the CloudFormation Template
 
@@ -147,26 +125,6 @@ Once Inspector has finished scanning the EC2 instance and the second state machi
 ![Multiple AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/7afc3368-3c7b-45be-abbc-cfc2142f69f6)
 
 We can extend the solution to handle multiple AMIs and automatic scheduling. The extended solution triggers a Lambda function on a scheduled basis which identifies AMIs with the appropriate tags and passes parameters to the Step Functions workflow. The rest of the solution is unchanged from the first part of the solution.
-
-The high-level overview of the full solution is as follows;
-1.	A scheduled rule is created with Amazon EventBridge which could be daily, weekly or monthly depending on your use case to trigger a Lambda function.
-2.	The Lambda function searches for AMIs with the appropriate tags and passes these as parameters to the Step Functions workflow.
-3.	The first Step Functions state machine  is invocated for each AMI to be scanned.
-4.	The first AWS Step Functions workflow deploys a temporary EC2 instance from the AMI which is defined.
-5.	A Lambda function is invoked to create an EventBridge rule.
-6.	An EventBridge rule is created to listen for the successful Inspector scanned event of the temporary EC2 instance.
-7.	A Lambda function is invoked to tag the EC2 instance.
-8.	The temporary EC2 instance is tagged showing the Inspector scanning is in progress
-9.	The first AWS Step Functions workflow will send a notification to a SNS topic.
-10.	The EventBridge rule parses the required parameters and triggers the second AWS Step Functions state machine.
-11.	A Lambda function is invoked to generate an Inspector report and export the findings to a S3 bucket.
-12.	The scanned AMI Inspector results are saved to a S3 bucket.
-13.	The AWS Step Functions workflow will terminate the temporary EC2 instance.
-14.	A Lambda function is invoked to delete the temporary EventBridge rule.
-15.	The temporary EventBridge rule and targets are deleted.
-16.	A Lambda function is invoked to tag the AMI
-17.	The scanned AMI is updated with tagging metadata.
-18.	The second AWS Step Functions workflow will send a notification to a SNS topic.
 
 #### AMI Tagging
 
