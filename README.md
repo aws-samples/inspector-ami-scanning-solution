@@ -7,11 +7,16 @@ There are two separate solutions and therefore separate cloudformation templates
 2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned by on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
 
 ### Prerequisites
+#### Active Inspector
+The solution requires that you activate Amazon Inspector in your AWS account - https://docs.aws.amazon.com/inspector/latest/user/getting_started_tutorial.html
+This can alternatively be achieved by using the AWS Command Line Interface (CLI) https://aws.amazon.com/cli/ and this GitHub example https://github.com/aws-samples/inspector2-enablement-with-cli. 
+
 #### AMI
 You will need at least one EC2 AMI which you have created with a supported operating system which Amaon Inspector is able to scan
 
 #### EBS Encyrption
 If you are using customer managed keys (CMK) for encrypting EBS volumes and have a default EC2 configuration set to encrypt EBS volumes, additional key policy permissions will be required to be configured.  For the KMS CMK which is used to encrypt EBS volumes, the following example policy statement can be added to the key policy;
+
 {
             "Sid": "Allow use of the key by AMI Scanner State Machine",
             "Effect": "Allow",
@@ -27,6 +32,7 @@ If you are using customer managed keys (CMK) for encrypting EBS volumes and have
             ],
             "Resource": "*"
         },
+        
 If this additional policy is not added, launching of EC2 instances by the Step Functions state machine will not be permitted. More info - https://docs.aws.amazon.com/autoscaling/ec2/userguide/key-policy-requirements-EBS-encryption.html#policy-example-cmk-access
 
 
