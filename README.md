@@ -135,29 +135,41 @@ The high-level overview of the full solution is as follows;
 18.	The second AWS Step Functions workflow will send a notification to a SNS topic.
 
 AMI Tagging
+
 To use this solution, AMIs which will be scanned by Amazon Inspector need to be tagged. For the purposes of this blog post, we have used the tag “InspectorScan” with a value of “true”. This ensures an AMI cannot be scanned unless the intended tagging strategy is configured. AMI tagging allows you to configure automated processes as part of your deployment pipelines to implement the tagging.
 
 Deploy the updated solution
 
 Step 1: Deploy the CloudFormation Template
+
 Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning within the AWS account and AWS Region where you want to test this solution.
 
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account.
 The CloudFormation template requires the following parameters to be configured prior to deploying successfully:
+
 AMITagName - the AMI tag name that will be used for checking if the AMI should be Inspector scanned
+
 AMITagValue - the AMI tag value that will be used for checking if the AMI should be Inspector scanned
+
 InspectorReportFormat – Specifies the report format which can either 'CSV' or 'JSON’
+
 InstanceSubnetID - the subnet ID used to launch the temporary EC2 instance into
+
 InstanceType - Used to define which instance type to deploy the AMI to for temporary scanning purposes 
+
 KmsKeyAdministratorRole - Used to define which exiting IAM role needs to have Administrator access to the Kms key created which provides access to encrypt and decrypt the Inspector Report
+
 S3ReportBucketName – the name of the S3 bucket to be created as part of the solution
+
 SnsTopic – A name of a new topic to be created which is used to define which SNS topic notifications are published to 
+
 2.	Review the stack name and the parameters for the template. 
 3.	Scroll to the bottom of the Quick create stack screen and select the checkbox next to I acknowledge that AWS CloudFormation might create IAM resources.
 4.	Choose Create stack. The deployment of this CloudFormation stack will take 3–4 minutes. 
 
 Step 2: Invoking the Lambda function
-There are a number of environment variables which will be defined by the CloudFormation template and passed into the “AMIScanner- GetAMIs” Lambda function by the EventBridge schedule task. All Tthe parameter configuration is used as input constant configuration to the target Lambda function on the EventBridge rule. 
+
+There are a number of environment variables which will be defined by the CloudFormation template and passed into the “AMIScanner- GetAMIs” Lambda function by the EventBridge schedule task. The parameter configuration is used as input constant configuration to the target Lambda function on the EventBridge rule. 
 
 {
   "INSTANCE_TYPE": "t3.medium",
