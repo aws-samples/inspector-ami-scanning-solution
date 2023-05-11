@@ -1,0 +1,1021 @@
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Scheduled Multi-AMI Inspector Scanner - CloudFormation Template                                                                                                   ║
+# ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+AWSTemplateFormatVersion: "2010-09-09"
+Metadata:
+    Version: "v.1.0.0"
+Description: "CloudFormation template for all required resources to leverage AWS Inspector to scan a multiple AMIs on a schedule basis"
+
+# ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Multi-AMI Scanner - CloudFormation Template Parameters                                                                                           ║
+# ╠═══════════════════════════════╤════════════════╤═════════════════════════════════════════════════════════════════════════════════════════════════╣
+# ║ InspectorReportFormat         │ String (list)  │ Valid options are 'CSV' or 'JSON' (case sensitive)                                              ║
+# ║ InstanceType                  │ String (list)  │ Used to define which instance type to load the AMI onto temporarily                             ║
+# ║ InstanceSubnetID              │ String         │ Used to define the existing subnetID which the temporary instance will launch into              ║
+# ║ AMITagName                    │ String         │ Used to define the AMI tag name used for checking if the AMI should be Inspector scanned        ║
+# ║ AMITagValue                   │ String         │ Used to define the AMI tag value used for checking if the AMI should be Inspector scanned       ║
+# ║ S3ReportBucketName            │ String         │ Used to define the S3 bucket name where the Inspector scanned reports will be exported          ║
+# ║ KmsKeyAdministratorRole       │ String         │ Used to define which exiting IAM role needs to have Administrator access to the Kms key created ║
+# ║ SnsTopic                      │ String         │ Used to define which SNS topic completion notifications are published to                        ║
+# ╚═══════════════════════════════╧════════════════╧═════════════════════════════════════════════════════════════════════════════════════════════════╝
+Parameters:
+    InspectorReportFormat:
+      Type: String
+      Default: CSV
+      AllowedValues:
+          - CSV
+          - JSON
+      Description: Select the preferred Inspector report format
+
+    InstanceType:
+      Type: String
+      Default: t3.medium
+      AllowedValues:
+          - t3.small
+          - t3.medium
+          - t3.large
+          - t3.xlarge
+      Description: Select the preferred instance type for temporary AMI boot
+
+    InstanceSubnetID:
+      Type: AWS::EC2::Subnet::Id
+      Default: ""
+      Description: Subnet ID for temporary EC2 instance to be launched into 
+
+    AMITagName:
+      Type: String
+      Default: InspectorScan
+      Description: Define the AMI tag name that will be used for checking if the AMI should be Inspector scanned
+
+    AMITagValue:
+      Type: String
+      Default: true
+      Description: Define the AMI tag value that will be used for checking if the AMI should be Inspector scanned
+    
+    S3ReportBucketName:
+      Type: String
+      Description: S3 bucket name where the Inspector scanned reports will be exported eg. ami-scanner-reports-AccountID
+
+    KmsKeyAdministratorRole:
+      Type: String
+      Default: Admin
+      Description: Enter the IAM role name for Administrator access to the created KMS key. This should be an existing role.
+      
+    SnsTopic:
+      Type: String
+      Default: InspectorScanner
+      Description: Enter the SNS topic name for notification publishing
+                       
+# ╔═════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+# ║ Multi-AMI Scanner - CloudFormation Template Resources                                                                                                               ║
+# ╠═══════════════════════════════════════════╤═══════════════════════════════════╤═════════════════════════════════════════════════════════════════════════════════════╣
+# ║ TagAMILambdaFunction                      │ AWS::Lambda::Function             │ Function for tagging EC2 images once scanning has completed from the state machine  ║
+# ║ CreateEBRuleLambdaFunction                │ AWS::Lambda::Function             │ Function to create a temporary Eventbridge rule to capture instance scanning events ║
+# ║ CleanupEBRuleLambdaFunction               │ AWS::Lambda::Function             │ Function for removing the Eventbridge rule created for capturing scanning events    ║
+# ║ CreateInspectorReportLambdaFunction       │ AWS::Lambda::Function             │ Function to create an Inspector report and export to an S3 bucket                   ║
+# ║ TerminateEC2LambdaFunction                │ AWS::Lambda::Function             │ Function to terminate the temporary EC2 instance                                    ║
+# ║ GetAMILambdaFunction                      │ AWS::Lambda::Function             │ Function to retrieve the list of AMIs for scanning that match tags                  ║
+# ║ Part1StepFunctionsStateMachine            │ AWS::StepFunctions::StateMachine  │ State machine to coordinate Part 1 of the AMI scanning workflow and tasks           ║
+# ║ Part2StepFunctionsStateMachine            │ AWS::StepFunctions::StateMachine  │ State machine to coordinate Part 2 of the AMI scanning workflow and tasks           ║
+# ║ AMIScannerStateMachinePolicy              │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the State Machines to complete tasks             ║
+# ║ TagAMILambdaPolicy                        │ AWS::IAM::ManagedPolicy           │ Custom policy for providing permissions for tagging AMI Lambda function             ║
+# ║ InvokeStateMachineEventbridgeRole         │ AWS::IAM::Role                    │ Role for invoking the state machine from Eventbridge rule                           ║
+# ║ InvokeStateMachineEventbridgePolicy       │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the State Machine                                ║
+# ║ AMIScannerInvokeScheduledGetAMIRole       │ AWS::IAM::Role                    │ Role for invoking the state machine from Eventbridge rule                           ║
+# ║ AMIScannerInvokeScheduledGetAMIPolicy     │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the Lambda function                              ║
+# ║ CreateEBRuleLambdaFunctionRole            │ AWS::IAM::Role                    │ Role for Lambda function to create temporary EventBridge rule                       ║
+# ║ CreateEBRuleLambdaFunctionRolePolicy      │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the Lambda function                              ║
+# ║ CleanupEBRuleLambdaFunctionRole           │ AWS::IAM::Role                    │ Role for Lambda function to remove temporary EventBridge rule                       ║
+# ║ CleanupEBRuleLambdaFunctionRolePolicy     │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the Lambda function                              ║
+# ║ InspectorFindingsLambdaFunctionRole       │ AWS::IAM::Role                    │ Role for Lambda function to generate inspector findings                             ║
+# ║ InspectorFindingsLambdaFunctionRolePolicy │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the Lambda function                              ║
+# ║ TerminateEC2LambdaFunctionPolicy          │ AWS::IAM::ManagedPolicy           │ Custom policy to provide access to the Lambda function                              ║
+# ║ TerminateEC2LambdaFunctionRole            │ AWS::IAM::Role                    │ Role for Lambda function to terminate the temporary EC2 instance                    ║
+# ║ StateMachineRole                          │ AWS::IAM::Role                    │ Role for step functions state machine                                               ║
+# ║ TagAMILambdaFunctionRole                  │ AWS::IAM::Role                    │ Role for Lambda function to tag an EC2 AMI                                          ║
+# ║ ReportsS3Bucket                           │ AWS::S3::Bucket                   │ S3 Bucket to store inspector findings                                               ║
+# ║ S3BucketPolicy                            │ AWS::S3::BucketPolicy             │ Policy document providing access to S3 bucket for Inspector                         ║
+# ║ EC2InstanceRole                           │ AWS::IAM::Role                    │ Role for EC2 SSM access                                                             ║
+# ║ EC2InstanceProfile                        │ AWS::IAM::InstanceProfile         │ Instance profile to attach to EC2 instance                                          ║
+# ║ AMIScannerSNSTopic                        │ AWS::SNS::Topic                   │ Topic for sending solution notifications                                            ║
+# ║ KMSKey                                    │ AWS::KMS::Key                     │ Key for generation of Inspector finding report                                      ║
+# ║ KMSKeyAlias                               │ AWS::KMS::Alias                   │ Alias (name identifier) for KMS key                                                 ║
+# ║ GetAMILambdaPolicy                        │ AWS::IAM::ManagedPolicy           │ IAM custom policy to provide access to the Lambda function                          ║
+# ║ GetAMILambdaFunctionRole                  │ AWS::IAM::Role                    │ IAM role for Lambda function to retrieve the list of AMIs for scanning              ║
+# ║ EventRule                                 │ AWS::Events::Rule                 │ Rule for scheduling the trigger of the GetAMILambdaFunctionIAM                      ║
+# ║ AccessEventsToInvokeLambda                │ AWS::Lambda::Permission           │ Permission for Eventbridge to invoke the GetAMILambdaFunction                       ║
+# ╚═══════════════════════════════════════════╧═══════════════════════════════════╧═════════════════════════════════════════════════════════════════════════════════════╝
+Resources:
+  TagAMILambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-TagAMI
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+          import os
+          import boto3
+          ec2 = boto3.resource('ec2')
+
+          def lambda_handler(event, context):  
+              AMI_ID=event['AMI_ID']
+              KEY_NAME=event['KEY_NAME']
+              KEY_VALUE=event['KEY_VALUE']
+              response = ec2.create_tags(Resources=[AMI_ID],
+                  Tags=[{'Key': KEY_NAME,'Value': KEY_VALUE}])
+              return "success"
+
+      Role: !GetAtt TagAMILambdaFunctionRole.Arn
+      Runtime: python3.9
+  
+  CreateEBRuleLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-CreateEBRule
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+
+          eventclient = boto3.client('events')
+
+          def lambda_handler(event, context): 
+              INSTANCE_ID=event['INSTANCE_ID']
+              STATEMACHINE_ARN=event['STATEMACHINE_ARN']
+              STATEMACHINE_ROLEARN=event['STATEMACHINE_ROLEARN']
+              REPORT_S3BUCKET=event['REPORT_S3BUCKET']
+              KEY_NAME=event['KEY_NAME']
+              AMI_ID=event['AMI_ID']
+              SNSTOPIC_ARN=event['SNSTOPIC_ARN']
+              S3REPORT_FORMAT=event['S3REPORT_FORMAT']
+              put_rule_response = eventclient.put_rule(
+                  Name=INSTANCE_ID,
+                  State='ENABLED',
+                  Description='AMI Scanner rule for EC2 instance',
+                  EventBusName='default',
+                  EventPattern= json.dumps({
+                        'source': ['aws.inspector2'],
+                        'detail-type': ['Inspector2 Scan'],
+                        'resources': [INSTANCE_ID]
+                    })
+                  )
+              put_target_response = eventclient.put_targets(
+                  Rule=INSTANCE_ID,
+                  Targets=[{
+                          'Id': 'AMIScannerStateMachine',
+                          'Arn': STATEMACHINE_ARN, 'RoleArn': STATEMACHINE_ROLEARN,
+                          'Input': json.dumps({'LaunchedInstanceId': INSTANCE_ID, 
+                              'S3Bucket': REPORT_S3BUCKET,
+                                'KeyName': KEY_NAME,
+                                  'AmiId': AMI_ID,
+                                  'SnsTopic': SNSTOPIC_ARN,
+                                  'S3ReportFormat': S3REPORT_FORMAT
+                          })
+                          }]
+                  )
+              return "success"
+
+      Role: !GetAtt CreateEBRuleLambdaFunctionRole.Arn
+      Runtime: python3.9
+
+  CleanupEBRuleLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-CleanupEBRule
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+          import boto3
+          eventclient = boto3.client('events')
+
+          def lambda_handler(event, context):  
+              INSTANCE_ID=event['INSTANCE_ID']
+              deletetargets_response = eventclient.remove_targets(
+                  Rule=INSTANCE_ID,
+                  EventBusName='default',
+                  Ids=['AMIScannerStateMachine']
+                  )
+              deleterule_response = eventclient.delete_rule(
+                  Name=INSTANCE_ID,
+                  EventBusName='default'
+                  )
+              return "success"
+
+      Role: !GetAtt CleanupEBRuleLambdaFunctionRole.Arn
+      Runtime: python3.9
+
+  CreateInspectorReportLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-InspectorFindingsReport
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+          import boto3
+          import os
+          import json
+          client = boto3.client('inspector2')
+
+          def lambda_handler(event, context):  
+              KEYNAME=event['KEYNAME']
+              INSTANCEID=event['INSTANCEID']
+              AMI=event['AMI']
+              S3BUCKET=event['S3BUCKET']
+              REPORTFORMAT=event['S3REPORTFORMAT']
+              response = client.create_findings_report(
+                  filterCriteria={
+                      'resourceId' : [
+                        {
+                        'comparison' : 'EQUALS',
+                        'value' : INSTANCEID
+                        },]
+                      },
+                  reportFormat=REPORTFORMAT,
+                  s3Destination={
+                      'bucketName': S3BUCKET,
+                      'keyPrefix': AMI,
+                      'kmsKeyArn': KEYNAME
+                      }
+              )
+              return "success"
+
+      Role: !GetAtt InspectorFindingsLambdaFunctionRole.Arn
+      Runtime: python3.9
+
+  TerminateEC2InstanceLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-TerminateEC2
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+          import boto3
+          ec2 = boto3.client('ec2')
+
+          def lambda_handler(event, context):  
+              INSTANCEID=event['INSTANCEID']
+              response = ec2.terminate_instances(InstanceIds=[INSTANCEID,])
+              return "success"
+
+      Role: !GetAtt TerminateEC2LambdaFunctionRole.Arn
+      Runtime: python3.9
+
+  GetAMILambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: AMIScanner-GetAMIs
+      Handler: index.lambda_handler
+      Architectures:
+        - x86_64
+      Code:
+        ZipFile: |
+              import json
+              import boto3
+              import os
+              ec2 = boto3.client('ec2')
+              sns_client = boto3.client('sns')
+
+              # Declare environment variables 
+              CURRENT_REGION=os.environ.get('CURRENT_REGION')
+
+              # Set the region in which the Step Function and Inspector Scanning will run
+              stepFunction = boto3.client('stepfunctions', region_name=CURRENT_REGION)
+
+              def lambda_handler(event, context):
+                  INSTANCE_TYPE=event['INSTANCE_TYPE']
+                  KMSKEY_NAME=event['KMSKEY_NAME']
+                  SUBNET_ID=event['SUBNET_ID']
+                  INSPECTOR_S3BUCKET=event['S3REPORTBUCKET']
+                  INSTANCE_PROFILEARN=event['INSTANCE_PROFILEARN']
+                  INSPECTOR_REPORTFORMAT=event['INSPECTOR_REPORTFORMAT']
+                  SNS_TOPICNAME=event['SNS_TOPICNAME']
+                  STATE_MACHINEARN=event['STATE_MACHINEARN']
+                  AMI_SCANTAG_NAME='tag:' + event['AMI_SCANTAG_NAME']
+                  AMI_SCANTAG_VALUE=event['AMI_SCANTAG_VALUE']
+                  # Get all images from account which are tagged with the Name and Value the filter will be based upon
+                  images = ec2.describe_images(
+                      Filters=[
+                          {
+                            'Name': AMI_SCANTAG_NAME, 'Values': [AMI_SCANTAG_VALUE]
+                          },
+                      ],
+                      Owners=['self'],
+                  )
+                  # Traverse the list returned and fetch Image ID and append in list
+                  tagged_ami = []  # Create empty list to save custom ami
+                  
+                  # If the tagged ami results in no AMIs tagged, we need to make sure we send a notification
+                  if len(images['Images']) !=0 and (images['Images']) != '':
+                      for image in images['Images']:
+                          tagged_ami.append(image['ImageId'])
+                          tagged_ami_scan = image['ImageId']
+                          input_dict= {
+                            'AmiId': tagged_ami_scan,
+                            'InstanceType' : INSTANCE_TYPE,
+                            'SubnetId' : SUBNET_ID,
+                            'Ec2InstanceProfile' : INSTANCE_PROFILEARN,
+                            'S3Bucket' : INSPECTOR_S3BUCKET,
+                            'S3ReportFormat' : INSPECTOR_REPORTFORMAT,
+                            'KMSKeyName' : KMSKEY_NAME,
+                            'SnsTopic' : SNS_TOPICNAME
+                          }
+                          response = stepFunction.start_execution(
+                          stateMachineArn=STATE_MACHINEARN,
+                          input = json.dumps(input_dict))  
+                      
+                      # Send a message to a SNS topic for monitoring
+                      sns_client.publish(TopicArn=SNS_TOPICNAME,Subject='AMIs which are listed for Inspector Scanning',Message=str(tagged_ami))
+                  else:
+                      # Send a message to a SNS topic for monitoring no AMIs were detected for scanning
+                      sns_client.publish(TopicArn=SNS_TOPICNAME,Subject='No AMIs are listed for Inspector Scanning',Message='No AMIs are tagged to be scanned')
+                  return "success"
+
+      Role: !GetAtt GetAMILambdaFunctionRole.Arn
+      Runtime: python3.9
+
+  Part1StepFunctionsStateMachine:
+      Type: AWS::StepFunctions::StateMachine
+      Properties:
+        StateMachineName: AMIScanner-Part1-LaunchEC2
+        DefinitionString: !Sub |
+          {
+            "Comment": "Trigger Launch of EC2 instance by Inspector Scanning",
+            "StartAt": "Launch Instance",
+            "States": {
+              "Launch Instance": {
+                "Type": "Task",
+                "Next": "Wait for Instance Running",
+                "Parameters": {
+                  "MaxCount": 1,
+                  "MinCount": 1,
+                  "ImageId.$": "$.AmiId",
+                  "InstanceType.$": "$.InstanceType",
+                  "SubnetId.$": "$.SubnetId",
+                  "IamInstanceProfile": {
+                    "Arn.$": "$.Ec2InstanceProfile"
+                  },
+                  "TagSpecifications": [
+                    {
+                      "ResourceType": "instance",
+                      "Tags": [
+                        {
+                          "Key": "${AMITagName}",
+                          "Value": "${AMITagValue}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:ec2:runInstances",
+                "Retry": [
+                  {
+                    "ErrorEquals": [
+                      "States.ALL"
+                    ],
+                    "BackoffRate": 1,
+                    "IntervalSeconds": 20,
+                    "MaxAttempts": 5,
+                    "Comment": "EC2 Instance Launch Retry"
+                  }
+                ],
+                "ResultPath": "$.LaunchedInstance",
+                "ResultSelector": {
+                  "Id.$": "$.Instances[0].InstanceId"
+                }
+              },
+              "Wait for Instance Running": {
+                "Type": "Wait",
+                "Seconds": 20,
+                "Next": "DescribeInstanceState"
+              },
+              "DescribeInstanceState": {
+                "Type": "Task",
+                "Next": "Check Instance State",
+                "Parameters": {
+                  "InstanceIds.$": "States.Array($.LaunchedInstance.Id)"
+                },
+                "Resource": "arn:${AWS::Partition}:states:::aws-sdk:ec2:describeInstanceStatus",
+                "ResultPath": "$.InstanceState",
+                "ResultSelector": {
+                  "Name.$": "$.InstanceStatuses[0].InstanceState.Name"
+                }
+              },
+              "Check Instance State": {
+                "Type": "Choice",
+                "Default": "Wait for Instance Running",
+                "Choices": [
+                  {
+                    "Variable": "$.InstanceState.Name",
+                    "StringEquals": "running",
+                    "Next": "Create Eventbridge Rule"
+                  }
+                ]
+              },
+              "Create Eventbridge Rule": {
+                "Type": "Task",
+                "Resource": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:AMIScanner-CreateEBRule",
+                "Parameters": {
+                  "INSTANCE_ID.$": "$.LaunchedInstance.Id",
+                  "STATEMACHINE_ARN": "arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:AMIScanner-Part2-InspectorReport-Cleanup",
+                  "STATEMACHINE_ROLEARN": "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/service-role/AMIScanner-InvokeStateMachineEB-role",
+                  "REPORT_S3BUCKET.$": "$.S3Bucket",
+                  "KEY_NAME.$": "$.KMSKeyName",
+                  "AMI_ID.$": "$.AmiId",
+                  "SNSTOPIC_ARN.$": "$.SnsTopic",
+                  "S3REPORT_FORMAT.$": "$.S3ReportFormat"
+                },
+                "Next": "Tag Temporary Instance",
+                "TimeoutSeconds": 5,
+                "ResultPath": null
+              },
+              "Tag Temporary Instance": {
+                "Type": "Task",
+                "Resource": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:AMIScanner-TagAMI",
+                "Parameters": {
+                  "AMI_ID.$": "$.LaunchedInstance.Id",
+                  "KEY_NAME": "AMIScannerStatus",
+                  "KEY_VALUE": "in progress"
+                },
+                "Next": "Publish Notification",
+                "TimeoutSeconds": 5,
+                "ResultPath": null
+              },
+              "Publish Notification": {
+                "Type": "Task",
+                "Resource": "arn:${AWS::Partition}:states:::sns:publish",
+                "Parameters": {
+                  "TopicArn.$": "$.SnsTopic",
+                  "Message": {
+                    "AWS Inspector AMI Scan status": "EC2 instance",
+                    "Temporarily launched AMI using instance.$": "$.LaunchedInstance.Id",
+                    "For AMI.$": "$.AmiId"
+                  }
+                },
+                "End": true
+              }
+            }
+          }
+        RoleArn: !GetAtt StateMachineRole.Arn
+        StateMachineType: STANDARD
+  
+  Part2StepFunctionsStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineName: AMIScanner-Part2-InspectorReport-Cleanup
+      DefinitionString: !Sub |
+        {
+          "Comment": "Trigger Launch of EC2 instance by Inspector Scanning",
+          "StartAt": "Create Inspector Report",
+          "States": {
+            "Create Inspector Report": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:AMIScanner-InspectorFindingsReport",
+              "Parameters": {
+                "INSTANCEID.$": "$.LaunchedInstanceId",
+                "AMI.$": "$.AmiId",
+                "KEYNAME.$": "$.KeyName",
+                "S3REPORTFORMAT.$": "$.S3ReportFormat",
+                "S3BUCKET.$": "$.S3Bucket"
+              },
+              "Next": "Terminate EC2",
+              "TimeoutSeconds": 5,
+              "ResultPath": null
+            },
+            "Terminate EC2": {
+              "Type": "Task",
+              "Parameters": {
+                "InstanceIds.$": "States.Array($.LaunchedInstanceId)"
+              },
+              "Resource": "arn:${AWS::Partition}:states:::aws-sdk:ec2:terminateInstances",
+              "Next": "Cleanup EventBridge Rule",
+              "ResultPath": null
+            },
+                "Cleanup EventBridge Rule": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:AMIScanner-CleanupEBRule",
+              "Parameters": {
+                "INSTANCE_ID.$": "$.LaunchedInstanceId"
+              },
+              "Next": "Tag Ami",
+              "TimeoutSeconds": 5,
+              "ResultPath": null
+            },
+            "Tag Ami": {
+                "Type": "Task",
+                "Resource": "arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:AMIScanner-TagAMI",
+                "Parameters": {
+                  "AMI_ID.$": "$.AmiId",
+                  "KEY_NAME": "AMIScannerStatus",
+                  "KEY_VALUE.$": "$.S3Bucket"
+                },
+                "Next": "Publish Notification",
+                "TimeoutSeconds": 5,
+                "ResultPath": null
+              },
+            "Publish Notification": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:states:::sns:publish",
+              "Parameters": {
+                "TopicArn.$": "$.SnsTopic",
+                "Message": {
+                  "AWS Inspector AMI Scan status": "EC2 instance",
+                  "Instance cleanup.$": "$.LaunchedInstanceId",
+                  "Inspector report S3 Bucket.$": "$.S3Bucket",
+                  "For AMI.$": "$.AmiId"
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      RoleArn: !GetAtt StateMachineRole.Arn
+      StateMachineType: STANDARD
+
+  AMIScannerStateMachinePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for running the step function state machines as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowInstanceandInspectorActions
+              Effect: Allow
+              Action:
+                - 'ec2:TerminateInstances'
+                - 'ec2:DeleteTags'
+                - 'lambda:InvokeFunction'
+                - 'ec2:CreateTags'
+                - 'ec2:CreateImage'
+                - 'ec2:RunInstances'
+                - 'inspector2:CreateFindingsReport'
+                - 'ec2:CreateVolume'
+                - 'ec2:CreateNetworkInterface'
+                - 'inspector2:ListFindings'
+                - 'ec2:StartInstances'
+                - 'ec2:CreateSecurityGroup'
+                - 'inspector2:GetFindingsReportStatus'
+                - 'ec2:CreateSubnet'
+                - 'ec2:DescribeInstanceStatus'
+                - 'inspector2:CancelFindingsReport'
+              Resource: '*'
+            - Sid: AllowS3KMSSNSPermissions
+              Effect: Allow
+              Action:
+                - 's3:PutObject'
+                - 'iam:PassRole'
+                - 'sns:Publish'
+                - 's3:PutBucketPublicAccessBlock'
+                - 'kms:PutKeyPolicy'
+                - 'kms:GetKeyPolicy'
+                - 's3:PutBucketAcl'
+                - 's3:PutBucketPolicy'
+                - 'states:StartExecution'
+                - 's3:CreateBucket'
+                - 's3:DeleteObject'
+                - 's3:PutObjectAcl'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${SnsTopic}'
+                - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:AMIScanner-Part2-InspectorReport-Cleanup'
+                - !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${EC2InstanceRole}'
+                - !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/${KMSKey}'
+                - !Sub 'arn:${AWS::Partition}:s3:::${ReportsS3Bucket}'
+                - !Sub 'arn:${AWS::Partition}:s3:::${ReportsS3Bucket}/*'
+  
+  TagAMILambdaPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for tagging AMIs as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowEC2Tagging
+              Effect: Allow
+              Action:
+                - 'ec2:CreateTags'
+              Resource: "*"
+            - Sid: AllowLogs  
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/Tag-AMI-Scanner:*'
+
+  InvokeStateMachineEventbridgePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for invoking the state machine from Eventbridge rule as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowStartStateMachine
+              Effect: Allow
+              Action:
+                - 'states:StartExecution'
+              Resource: 
+              - !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:AMIScanner-Part2-InspectorReport-Cleanup'
+
+  InvokeStateMachineEventbridgeRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-InvokeStateMachineEB-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"states.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"},{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"events.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref InvokeStateMachineEventbridgePolicy
+
+  AMIScannerInvokeScheduledGetAMIPolicy:
+      Type: 'AWS::IAM::ManagedPolicy'
+      Properties:
+        Description: Policy for invoking the scheduled task of the lambda function get-ami
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+              - Sid: AllowStartStateMachine
+                Effect: Allow
+                Action:
+                  - 'lambda:InvokeFunction'
+                Resource: 
+                - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:lambda:Get-AMI-Scanner'
+
+  AMIScannerInvokeScheduledGetAMIRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-InvokeScheduledGet-AMI-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref AMIScannerInvokeScheduledGetAMIPolicy
+  
+  CreateEBRuleLambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-CreateEBRule-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref CreateEBRuleLambdaFunctionRolePolicy
+
+  CreateEBRuleLambdaFunctionRolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for creating an eventbridge rule as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowPutTarget
+              Effect: Allow
+              Action:
+                - 'events:PutTargets'
+                - 'events:PutRule'
+              Resource: "*"
+            - Sid: AllowPassRole
+              Effect: Allow
+              Action:
+                - 'iam:PassRole'
+              Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/service-role/AMIScanner-InvokeStateMachineEB-role'
+
+  CleanupEBRuleLambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-CleanupEBRule-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref CleanupEBRuleLambdaFunctionRolePolicy
+
+  CleanupEBRuleLambdaFunctionRolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for removing eventbridge rule as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowDeleteTarget
+              Effect: Allow
+              Action:
+                - 'events:DeleteRule'
+                - 'events:RemoveTargets'
+              Resource: "*"
+
+  InspectorFindingsLambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-InspectorFindingsLambda-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref InspectorFindingsLambdaFunctionRolePolicy
+
+  InspectorFindingsLambdaFunctionRolePolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for creating inspector findings via Lambda function as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: Allowinvokefunctioncreatefindingsreport
+              Effect: Allow
+              Action:
+                - 'lambda:InvokeFunction'
+                - 'inspector2:CreateFindingsReport'
+              Resource: "*"
+            - Sid: AllowS3access
+              Effect: Allow
+              Action: 
+                - 's3:PutObject'
+                - 's3:PutBucketAcl'
+                - 's3:PutBucketPolicy'
+                - 's3:CreateBucket'
+                - 's3:PutObjectAcl'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:s3:::${S3ReportBucketName}/*'
+                - !Sub 'arn:${AWS::Partition}:s3:::${S3ReportBucketName}'
+            - Sid: AllowKMSGetkey
+              Effect: Allow
+              Action: 
+                - 'kms:GetKeyPolicy'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/60e1dcb3-f965-402d-bdad-cb85391c5a07'
+
+  TerminateEC2LambdaFunctionPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy terminating an EC2 instance as part of the Inspector AMI Scannner solution
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: AllowTerminateEC2
+              Effect: Allow
+              Action:
+                - 'ec2:TerminateInstances'
+              Resource: "*"
+    
+  TerminateEC2LambdaFunctionRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-TerminateEC2Lambda-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref TerminateEC2LambdaFunctionPolicy
+
+  StateMachineRole:
+      Type: AWS::IAM::Role
+      Properties:
+        Path: "/service-role/"
+        RoleName: AMIScanner-Statemachine-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"states.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - !Ref AMIScannerStateMachinePolicy
+  
+  TagAMILambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/service-role/"
+      RoleName: tag-ami-lambdafunction-role
+      AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+      ManagedPolicyArns:
+         - !Ref TagAMILambdaPolicy
+
+  ReportsS3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        BucketName: !Sub "${S3ReportBucketName}"
+
+  S3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket: !Ref ReportsS3Bucket
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Sid: Allow Amazon Inspector to add objects to the bucket
+            Effect: Allow
+            Principal:
+              Service: inspector2.amazonaws.com
+            Action:
+            - s3:PutObject
+            - s3:PutObjectAcl
+            - s3:AbortMultipartUpload
+            Resource: !Sub "arn:${AWS::Partition}:s3:::${ReportsS3Bucket}/*"
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Sub "${AWS::AccountId}"
+              ArnLike:
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:inspector2:${AWS::Region}:${AWS::AccountId}:report/*"
+
+  EC2InstanceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: AMIScanner-ec2instance-role
+        AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"ec2.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+          - arn:aws:iam::aws:policy/AmazonSSMPatchAssociation
+
+  EC2InstanceProfile:
+      Type: AWS::IAM::InstanceProfile
+      Properties:
+        Roles:
+          -
+            !Ref EC2InstanceRole
+
+  AMIScannerSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref SnsTopic
+
+  KMSKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Enabled: true
+      KeyUsage: ENCRYPT_DECRYPT
+      KeyPolicy:
+        Version: '2012-10-17'
+        Id: kms-key-policy
+        Statement:
+        - Sid: Allow IAM usage of the KMS key
+          Effect: Allow
+          Principal:
+            AWS: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${KmsKeyAdministratorRole}"
+          Action:
+          - kms:Encrypt
+          - kms:Decrypt
+          - kms:ReEncrypt*
+          - kms:GenerateDataKey*
+          - kms:DescribeKey
+          Resource: "*"
+        - Sid: Allow Amazon Inspector to use the KMS key
+          Effect: Allow
+          Principal:
+            Service: inspector2.amazonaws.com
+          Action:
+          - kms:Decrypt
+          - kms:GenerateDataKey*
+          Resource: "*"
+          Condition:
+            StringEquals:
+              aws:SourceAccount: !Sub "${AWS::AccountId}"
+            ArnLike:
+              aws:SourceArn: !Sub arn:${AWS::Partition}:inspector2:${AWS::Region}:${AWS::AccountId}:report/*
+        - Sid: Allow management access for key administrators
+          Effect: Allow
+          Principal:
+            AWS:
+            - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:role/${KmsKeyAdministratorRole}"
+          Action:
+          - kms:Create*
+          - kms:Describe*
+          - kms:Enable*
+          - kms:List*
+          - kms:Put*
+          - kms:Update*
+          - kms:Revoke*
+          - kms:Disable*
+          - kms:Get*
+          - kms:Delete*
+          - kms:TagResource
+          - kms:UntagResource
+          - kms:ScheduleKeyDeletion
+          - kms:CancelKeyDeletion
+          Resource: "*"
+      KeySpec: SYMMETRIC_DEFAULT
+      MultiRegion: false
+
+  KMSKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/amiscanner-kmskey-alias
+      TargetKeyId: !Ref KMSKey
+  
+  GetAMILambdaPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for retrieving the list of AMIs to be scanned
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: GetAMITags
+              Effect: Allow
+              Action:
+                - 'ec2:CreateTags'
+                - 'ec2:DescribeImages'
+                - 'ec2:DescribeInstances'
+                - 'ec2:DescribeTags'
+                - 'ec2:DescribeImageAttribute'
+                - 'logs:*'
+                - 'ec2:DescribeInstanceTypes'
+                - 'ec2:DescribeInstanceStatus'
+              Resource: "*"
+            - Sid: StartAMIScannerSF
+              Effect: Allow
+              Action:
+                - 'states:StartExecution'
+              Resource: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:AMIScanner-Part1-LaunchEC2'
+            - Sid: AllowSNSPublish
+              Effect: Allow
+              Action:
+                - 'sns:Publish'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${SnsTopic}'
+
+  GetAMILambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/service-role/"
+      RoleName: AMIScanner-getami-lambdafunction-role
+      AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+      ManagedPolicyArns:
+         - !Ref GetAMILambdaPolicy
+
+  EventRule: 
+    Type: AWS::Events::Rule
+    Properties: 
+      Description: "ScheduledRuleforAMIScanning"
+      EventBusName: "default"
+      Name: "AMIScanner-ScheduledSolutionTask"
+      ScheduleExpression: "cron(0 1 ? * 1 *)"
+      State: "ENABLED"
+      Targets: 
+        - Id: "GetAMILambdaFunction"
+          Arn: 
+            Fn::GetAtt: 
+              - "GetAMILambdaFunction"
+              - "Arn"
+          Input: !Sub
+              - '{"INSTANCE_TYPE": "${InstanceType}","SUBNET_ID": "${InstanceSubnetID}",
+                "INSTANCE_PROFILEARN": "${EC2InstanceProfileArn}",
+                "SNS_TOPICNAME": "arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${SnsTopic}","S3REPORTBUCKET": "${S3ReportBucketName}",
+                "AMI_SCANTAG_NAME": "${AMITagName}","AMI_SCANTAG_VALUE": "${AMITagValue}",
+                "KMSKEY_NAME": "${S3KMSKeyNameArn}", "STATE_MACHINEARN": "${Part1StateMachineArn}",
+                "INSPECTOR_REPORTFORMAT": "${InspectorReportFormat}"}'
+              - S3KMSKeyNameArn: !GetAtt KMSKey.Arn
+                EC2InstanceProfileArn: !GetAtt EC2InstanceProfile.Arn
+                Part1StateMachineArn: !GetAtt Part1StepFunctionsStateMachine.Arn
+   
+  AccessEventsToInvokeLambda: 
+    Type: AWS::Lambda::Permission
+    Properties: 
+      FunctionName: !Ref "GetAMILambdaFunction"
+      Action: "lambda:InvokeFunction"
+      Principal: "events.amazonaws.com"
+      SourceArn: 
+        Fn::GetAtt: 
+          - "EventRule"
+          - "Arn"
+
+Outputs: 
+  InstanceType: 
+    Description: EC2 temporary instance type
+    Value: !Ref InstanceType
+  
+  SubnetID: 
+    Description: The subnet ID where the temporary EC2 instance will be launch 
+    Value: !Ref InstanceSubnetID
+  
+  EC2InstanceProfile:
+    Description: The ARN of the EC2 instance profile
+    Value: !GetAtt EC2InstanceProfile.Arn
+    
+  S3Bucket: 
+    Description: The bucket name where the Inspector reports will be exported
+    Value: !Ref S3ReportBucketName
+  
+  S3ReportFormat: 
+    Description: The report format of the Inspector reports
+    Value: !Ref InspectorReportFormat
+  
+  KmsKeyName: 
+    Description: The ARN of the KMS key to be used for encrypting and decrypting the Inspector Report 
+    Value: !GetAtt KMSKey.Arn
+
+  SnsTopic: 
+    Description: The ARN of the SNS topic which was created for sending notifications 
+    Value: !Ref AMIScannerSNSTopic
+
+  AMITagName:
+    Description: The AMI tag name that will be used for checking if the AMI should be Inspector scanned
+    Value: !Ref AMITagName
+
+  AMITagValue:
+    Description: The AMI tag value that will be used for checking if the AMI should be Inspector scanned
+    Value: !Ref AMITagValue
