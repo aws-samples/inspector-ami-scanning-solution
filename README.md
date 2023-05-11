@@ -7,7 +7,7 @@ There are two separate solutions and therefore separate cloudformation templates
 2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned by on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
 
 ### Prerequisites
-#### Active Inspector
+#### Activate Inspector
 The solution requires that you activate Amazon Inspector in your AWS account - https://docs.aws.amazon.com/inspector/latest/user/getting_started_tutorial.html
 This can alternatively be achieved by using the AWS Command Line Interface (CLI) https://aws.amazon.com/cli/ and this GitHub example https://github.com/aws-samples/inspector2-enablement-with-cli. 
 
