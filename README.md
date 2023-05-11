@@ -36,6 +36,7 @@ The high level workflow of the solution is as follows;
 
 
 Prerequisite: Activate Amazon Inspector in your AWS Account
+
 Step 1: Deploy the CloudFormation Template
 
 Make sure you deploy the CloudFormation template provided for Single AMI Scanning within the AWS account and AWS Region where you want to test this solution.
