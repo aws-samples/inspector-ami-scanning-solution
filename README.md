@@ -1,4 +1,4 @@
-## Amazon Inspector V2 AMI Scanning Solution
+# Amazon Inspector V2 AMI Scanning Solution
 
 This repository provides all the Cloudformation templates, Lambda functions and Step Functions codes related to the solution.
 
@@ -6,9 +6,9 @@ There are two separate solutions and therefore separate cloudformation templates
 1. Single-AMI-Scanner = used for passing into the Cfn template a single AMI ID for scanning by Amazon Inspector
 2. Scheduled-Multi-AMI-Scanner = used for fetching AMI's to be scanned by on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
 
-# Solution Architecture Overviews
+## Solution Architecture Overviews
 
-# Single AMI Scanner Solution
+### Single AMI Scanner Solution
 
 ![Single AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/8f81e598-821c-40c3-a1c6-09b2b14d1b53)
 
@@ -111,7 +111,7 @@ Once Inspector has finished scanning the EC2 instance and the second state machi
 {"AWS Inspector AMI Scan completed":"Successfully","For AMI":"ami-abcdef01234567890","AWS Inspector report located at S3 Bucket":"DOC-EXAMPLE-BUCKET-111122223333","Temporarily launched AMI using instance":"i-abcdef01234567890"}
 
 
-# Multi-AMI Scheduled Scanner Solution
+### Multi-AMI Scheduled Scanner Solution
 
 ![Multiple AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/7afc3368-3c7b-45be-abbc-cfc2142f69f6)
 
