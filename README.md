@@ -4,7 +4,7 @@ This repository provides the Cloudformation templates related to the solution.
 
 There are two separate solutions and therefore separate cloudformation templates which can be used;
 1. Single-AMI-Scanner - used for passing into the Cfn template a single AMI ID for scanning by Amazon Inspector
-2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned by on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
+2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
 
 ### Prerequisites
 #### Activate Inspector
