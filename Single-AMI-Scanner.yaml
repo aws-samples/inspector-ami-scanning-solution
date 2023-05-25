@@ -454,7 +454,18 @@ Resources:
               },
               "Next": "Terminate EC2",
               "TimeoutSeconds": 5,
-              "ResultPath": null
+              "ResultPath": null,
+              "Retry": [
+                {
+                  "ErrorEquals": [
+                    "States.TaskFailed"
+                  ],
+                  "BackoffRate": 1,
+                  "IntervalSeconds": 60,
+                  "MaxAttempts": 10,
+                  "Comment": "FindingReportRetryQueue"
+                }
+              ]
             },
             "Terminate EC2": {
               "Type": "Task",
