@@ -97,15 +97,25 @@ After the CloudFormation stack has deployed successfully, you can use the deploy
 #### Step 2: Running the first Step Functions workflow
 
 The first Step Functions state machine requires parameters to be passed in; the SingleAMI Lambda function accomplishes this. You can start the Lambda function by creating a test event and passing the correct JSON text and parameters. The following parameters are available in the output section of the CloudFormation stack that the solution deployed. 
+
 •	AmiId – the ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
+
 •	EC2InstanceProfile – the ARN of the EC2 instance profile that was created by the CloudFormation stack.
+
 •	InstanceType – the type of EC2 instance to use for deployment. 
+
 •	KmsKeyName – the ARN of the KMS key to be used for encrypting and decrypting the Amazon Inspector report that was created by the CloudFormation stack.
+
 •	S3Bucket – the name of the S3 bucket where the Amazon Inspector reports will be exported to. The S3 bucket was created previously by the CloudFormation stack.
+
 •	S3ReportFormat – the report format that Amazon Inspector will use to export the findings report; either JSON or CSV formats are valid.
+
 •	SnsTopc – the ARN of the SNS topic to which notifications will be sent. This SNS topic was created previously by the CloudFormation stack.
+
 •	StateMachineArn – the ARN of the first Step Functions state machine, whichthat the Lambda function will run first.
+
 •	SubnetId – the VPC subnet ID where the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet created specifically for this scanning purpose.
+
 
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
@@ -124,9 +134,11 @@ The following is an example parameter configuration and JSON that you can use to
 
 After the first state machine is finished, the EventBridge rule listens for the successful Amazon Inspector scan event. An SNS notification is sent, similar to the following: 
             
+            
 {"AWS Inspector AMI Scan status":"EC2 instance","For AMI":"ami-abcdef01234567890","Temporarily launched AMI using instance":"i-abcdef01234567890"}
             
 After Amazon Inspector has finished scanning the EC2 instance, and the second state machine completes successfully, the Amazon Inspector finding report appears in the S3 bucket and notifications appear on the SNS topic that was created. The following is an example of an SNS notification:
+            
             
 {"AWS Inspector AMI Scan completed":"Successfully","For AMI":"ami-abcdef01234567890","AWS Inspector report located at S3 Bucket":"DOC-EXAMPLE-BUCKET-111122223333","Temporarily launched AMI using instance":"i-abcdef01234567890"}
 
