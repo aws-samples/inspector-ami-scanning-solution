@@ -2,9 +2,9 @@
 
 This repository provides the Cloudformation templates related to the solution.
 
-There are two separate solutions and therefore separate cloudformation templates which can be used;
+There are two separate solutions and therefore separate CloudFormation templates which can be used;
 1. Single-AMI-Scanner - used for passing into the Cfn template a single AMI ID for scanning by Amazon Inspector
-2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned on your required tagging preferences. Scans are scheduled using a scheduled Eventbridge rule
+2. Scheduled-Multi-AMI-Scanner - used for fetching AMI's to be scanned on your required tagging preferences. Scans are scheduled using a scheduled EventBridge rule
 
 ### Prerequisites
 #### Activate Inspector
@@ -12,7 +12,7 @@ The solution requires that you activate Amazon Inspector in your AWS account - h
 This can alternatively be achieved by using the AWS Command Line Interface (CLI) https://aws.amazon.com/cli/ and this GitHub example https://github.com/aws-samples/inspector2-enablement-with-cli. 
 
 #### AMI
-You will need at least one EC2 AMI which you have created with a supported operating system which Amaon Inspector is able to scan
+You will need at least one EC2 AMI which you have created with a supported operating system which Amazon Inspector is able to scan
 
 #### EBS Encyrption
 If you are using customer managed keys (CMK) for encrypting EBS volumes and have a default EC2 configuration set to encrypt EBS volumes, additional key policy permissions will be required to be configured.  For the KMS CMK which is used to encrypt EBS volumes, the following example policy statement can be added to the key policy;
@@ -42,10 +42,9 @@ If this additional policy is not added, launching of EC2 instances by the Step F
 
 ![Single AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/8f81e598-821c-40c3-a1c6-09b2b14d1b53)
 
-
 A Lambda function will be used to define and pass parameters to the first AWS Step Functions step and workflow. This workflow step function will launch a temporary EC2 instance from the AMI which has been chosen to be scanned and tag the temporary EC2 instance. An EventBridge rule will be created to listen for the successful Inspector scan event message for the temporary EC2 instance. This is required as the Inspector scanning process of the temporary EC2 instance could take some time to complete depending on a number of factors including instance operating system and account limitations.
 
-Once the Inspector scan has completed successfully, the EventBridge rule will match the successful scan event and trigger the second Step Functions state machine. The second state machine will invoke a Lambda function to export the Inspector findings for the AMI to an Amazon S3Amazon S3 bucket. Another Lambda function is triggered to add a tag to the AMI which has been scanned which includes the location of the Amazon S3 bucket where the Inspector findings are located. A notification is sent to an Amazon SNSAmazon SNS topic with the AMI which was scanned, the status, the S3 bucket location for the report findings and the temporary EC2 instance id which was launched. 
+Once the Inspector scan has completed successfully, the EventBridge rule will match the successful scan event and trigger the second Step Functions state machine. The second state machine will invoke a Lambda function to export the Inspector findings for the AMI to an Amazon S3Amazon S3 bucket. Another Lambda function is triggered to add a tag to the AMI which has been scanned which includes the location of the Amazon S3 bucket where the Inspector findings are located. A notification is sent to an SNS topic with the AMI which was scanned, the status, the S3 bucket location for the report findings and the temporary EC2 instance id which was launched. 
 
 
 #### Step 1: Deploy the CloudFormation Template
