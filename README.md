@@ -17,21 +17,19 @@ You will need at least one EC2 AMI which you have created with a supported opera
 #### EBS Encyrption
 If you are using customer managed keys (CMK) for encrypting EBS volumes and have a default EC2 configuration set to encrypt EBS volumes, additional key policy permissions will be required to be configured.  For the KMS CMK which is used to encrypt EBS volumes, the following example policy statement can be added to the key policy;
 
-{
-            "Sid": "Allow use of the key by AMI Scanner State Machine",
-            "Effect": "Allow",
-            "Principal": {
-                "AWS": "arn:aws:iam:: 111122223333:role/service-role/AMIScanner-Statemachine-role"
-            },
-            "Action": [
-                "kms:Encrypt",
-                "kms:Decrypt",
-                "kms:ReEncrypt*",
-                "kms:GenerateDataKey*",
-                "kms:DescribeKey"
-            ],
-            "Resource": "*"
-        },
+            {"Sid": "Allow use of the key by AMI Scanner State Machine",
+                        "Effect": "Allow",
+                        "Principal": {
+                            "AWS": "arn:aws:iam:: 111122223333:role/service-role/AMIScanner-Statemachine-role"
+                        },
+                        "Action": [
+                            "kms:Encrypt",
+                            "kms:Decrypt",
+                            "kms:ReEncrypt*",
+                            "kms:GenerateDataKey*",
+                            "kms:DescribeKey"
+                        ],
+                        "Resource": "*"}
         
 If this additional policy is not added, launching of EC2 instances by the Step Functions state machine will not be permitted. More info - https://docs.aws.amazon.com/autoscaling/ec2/userguide/key-policy-requirements-EBS-encryption.html#policy-example-cmk-access
 
@@ -120,17 +118,15 @@ The first Step Functions state machine requires parameters to be passed in; the 
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
             
-{
-"AmiId" : "<AMIami-ABCDEFabcdef01234567890>",
-"Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
-“InstanceType" : "t3.medium",
-"KmsKeyName" : "arn:aws:kms:region-name: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>",
-"S3Bucket" : "<DOC-EXAMPLE-BUCKET-111122223333>",
-"S3ReportFormat" : "CSV",
-"SnsTopic" : "arn:aws:sns:region-name-2: <111122223333>:InspectorScanner",
-"StateMachine": "arn:aws:states:region-name: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
-"SubnetId" : "<SUBNETsubnet-ABCDEFabcdef01234567890>"
-}
+                        {"AmiId" : "<AMIami-ABCDEFabcdef01234567890>",
+                        "Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
+                        “InstanceType" : "t3.medium",
+                        "KmsKeyName" : "arn:aws:kms:region-name: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>",
+                        "S3Bucket" : "<DOC-EXAMPLE-BUCKET-111122223333>",
+                        "S3ReportFormat" : "CSV",
+                        "SnsTopic" : "arn:aws:sns:region-name-2: <111122223333>:InspectorScanner",
+                        "StateMachine": "arn:aws:states:region-name: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
+                        "SubnetId" : "<SUBNETsubnet-ABCDEFabcdef01234567890>"}
 
 
 After the first state machine is finished, the EventBridge rule listens for the successful Amazon Inspector scan event. An SNS notification is sent, similar to the following: 
