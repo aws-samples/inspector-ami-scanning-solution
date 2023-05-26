@@ -72,13 +72,21 @@ Once the Inspector scan has completed successfully, the EventBridge rule will ma
 Make sure that you deploy the CloudFormation template provided for Single AMI Scanning within the AWS account and Region where you want to test the solution.
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account.
 To deploy the template successfully, you need to configure the following parameters:
+
 •	InspectorReportFormat – the report format, which can be either a CSV or JSON file
+
 •	InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
+
 •	InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
+
 •	ScannedAMIID – the ID of the AMI to be scanned by Amazon Inspector
+
 •	S3ReportBucketName – the name of the S3 bucket to be created 
+
 •	KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created, which provides access to encrypt and decrypt the Amazon Inspector report
+
 •	SnsTopic – the name of the new SNS topic to be created; determines which SNS topic notifications are published to 
+
 
 2.	Review the stack name and the parameters for the template. 
 3.	On the Quick create stack screen, scroll to the bottom and select the I acknowledge that AWS CloudFormation might create IAM resources.
