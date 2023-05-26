@@ -1,4 +1,4 @@
-# Amazon Inspector V2 AMI Scanning Solution
+# Amazon Inspector AMI Scanning Solution
 
 This repository provides the Cloudformation templates related to the solution.
 
