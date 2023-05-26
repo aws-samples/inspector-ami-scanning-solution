@@ -215,18 +215,16 @@ There are a number of environment variables that will be defined by the CloudFor
             
 The following is an example JSON parameter configuration that you can use to invoke the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
 
-            {
-  "INSTANCE_TYPE": "t3.medium",
-  "SUBNET_ID": "<SUBNETsubnet-ABCDEFabcdef01234567890>",
-  "INSTANCE_PROFILEARN": "arn:aws:iam::< 111122223333>:instance-profile/SingleAMIScanner-EC2InstanceProfile",
-  "SNS_TOPICNAME": "arn:aws:sns:<region>:<111122223333>:InspectorScanner",
-  "S3REPORTBUCKET": "<DOC-EXAMPLE-BUCKET-111122223333>",
-  "AMI_SCANTAG_NAME": "InspectorScan",
-  "AMI_SCANTAG_VALUE": "true",
-  "KMSKEY_NAME": "arn:aws:kms:<region>: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>x",
-  "STATE_MACHINEARN": "arn:aws:states:<region>ap-southeast-2: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
-  "INSPECTOR_REPORTFORMAT": "CSV"
-            }
+            {"INSTANCE_TYPE": "t3.medium",
+              "SUBNET_ID": "<SUBNETsubnet-ABCDEFabcdef01234567890>",
+              "INSTANCE_PROFILEARN": "arn:aws:iam::< 111122223333>:instance-profile/SingleAMIScanner-EC2InstanceProfile",
+              "SNS_TOPICNAME": "arn:aws:sns:<region>:<111122223333>:InspectorScanner",
+              "S3REPORTBUCKET": "<DOC-EXAMPLE-BUCKET-111122223333>",
+              "AMI_SCANTAG_NAME": "InspectorScan",
+              "AMI_SCANTAG_VALUE": "true",
+              "KMSKEY_NAME": "arn:aws:kms:<region>: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>x",
+              "STATE_MACHINEARN": "arn:aws:states:<region>ap-southeast-2: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
+              "INSPECTOR_REPORTFORMAT": "CSV"}
 
 
 ## Security
