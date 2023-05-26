@@ -119,6 +119,7 @@ The first Step Functions state machine requires parameters to be passed in; the 
 
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
+            
 {
 "AmiId" : "<AMIami-ABCDEFabcdef01234567890>",
 "Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
@@ -184,14 +185,24 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account.
 Make sure that you configure the following parameters in the CloudFormation template so that it deploys successfully:
+            
 •	AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
+            
 •	AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
+            
 •	InspectorReportFormat – the report format, which can be either CSV or JSON
+            
 •	InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
+            
+            
 •	InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
+            
 •	KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
+            
 •	S3ReportBucketName – the name of the S3 bucket to be created 
+            
 •	SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
+            
 
 2.	Review the stack name and the parameters for the template. 
 3.	On the Quick create stack screen, scroll to the bottom and select I acknowledge that AWS CloudFormation might create IAM resources.
@@ -201,9 +212,10 @@ Make sure that you configure the following parameters in the CloudFormation temp
 #### Step 2: Invoking the Lambda function
 
 There are a number of environment variables that will be defined by the CloudFormation template and passed into the AMIScanner- GetAMIs Lambda function by the EventBridge schedule task. The parameter configuration is used as input configuration to the target Lambda function on the EventBridge rule. 
+            
 The following is an example JSON parameter configuration that you can use to invoke the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
 
-{
+            {
   "INSTANCE_TYPE": "t3.medium",
   "SUBNET_ID": "<SUBNETsubnet-ABCDEFabcdef01234567890>",
   "INSTANCE_PROFILEARN": "arn:aws:iam::< 111122223333>:instance-profile/SingleAMIScanner-EC2InstanceProfile",
@@ -214,7 +226,7 @@ The following is an example JSON parameter configuration that you can use to inv
   "KMSKEY_NAME": "arn:aws:kms:<region>: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>x",
   "STATE_MACHINEARN": "arn:aws:states:<region>ap-southeast-2: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
   "INSPECTOR_REPORTFORMAT": "CSV"
-
+            }
 
 
 ## Security
