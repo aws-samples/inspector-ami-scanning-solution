@@ -4,7 +4,7 @@
 
 AWSTemplateFormatVersion: "2010-09-09"
 Metadata:
-    Version: "v.1.0.0"
+    Version: "v.1.0.1"
 Description: "CloudFormation template for all required resources to leverage AWS Inspector to scan a multiple AMIs on a schedule basis"
 
 # ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
@@ -271,6 +271,62 @@ Resources:
 
       Role: !GetAtt TerminateEC2LambdaFunctionRole.Arn
       Runtime: python3.9
+
+  SingleAMILambdaFunction:
+      Type: AWS::Lambda::Function
+      Properties:
+        FunctionName: AMIScanner-SingleAMI
+        Handler: index.lambda_handler
+        Architectures:
+          - x86_64
+        Code:
+          ZipFile: |
+                import boto3
+                import os
+                import json
+                ec2 = boto3.client('ec2')
+                sns_client = boto3.client('sns')
+
+                # Declare environment variables 
+                CURRENT_REGION=os.environ.get('CURRENT_REGION')
+
+                # Set the region in which the Step Function and Inspector Scanning will run
+                stepFunction = boto3.client('stepfunctions', region_name=CURRENT_REGION)
+
+                def lambda_handler(event, context):
+                    INSTANCE_TYPE=event['InstanceType']
+                    KMSKEY_NAME=event['KmsKeyName']
+                    SUBNET_ID=event['SubnetId']
+                    INSPECTOR_S3BUCKET=event['S3Bucket']
+                    AMI_SCANNED=event['AmiId']
+                    INSTANCE_PROFILEARN=event['Ec2InstanceProfile']
+                    INSPECTOR_REPORTFORMAT=event['S3ReportFormat']
+                    SNS_TOPICNAME=event['SnsTopic']
+                    STATE_MACHINE=event['StateMachine']
+                                      
+                    # If the tagged ami results in no AMIs tagged, we need to make sure we send a notification
+                    if len(AMI_SCANNED) !=0 and (AMI_SCANNED) != '':
+                        input_dict= {
+                              'AmiId': AMI_SCANNED,
+                              'InstanceType' : INSTANCE_TYPE,
+                              'SubnetId' : SUBNET_ID,
+                              'Ec2InstanceProfile' : INSTANCE_PROFILEARN,
+                              'S3Bucket' : INSPECTOR_S3BUCKET,
+                              'S3ReportFormat' : INSPECTOR_REPORTFORMAT,
+                              'KmsKeyName' : KMSKEY_NAME,
+                              'SnsTopic' : SNS_TOPICNAME
+                              }
+                        response = stepFunction.start_execution(stateMachineArn=STATE_MACHINE,input = json.dumps(input_dict))  
+                        
+                        # Send a message to a SNS topic for monitoring
+                        sns_client.publish(TopicArn=SNS_TOPICNAME,Subject='AMI to be Inspector Scanned',Message=str(AMI_SCANNED))
+                    else:
+                        # Send a message to a SNS topic for monitoring no AMIs were detected for scanning
+                        sns_client.publish(TopicArn=SNS_TOPICNAME,Subject='No AMI has been listed for Inspector Scanning',Message='No AMI to be scanned')
+                    return "success"
+
+        Role: !GetAtt SingleAMILambdaFunctionRole.Arn
+        Runtime: python3.9
 
   GetAMILambdaFunction:
     Type: AWS::Lambda::Function
@@ -561,26 +617,46 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-            - Sid: AllowInstanceandInspectorActions
+            - Sid: AllowInstanceActions
               Effect: Allow
               Action:
                 - 'ec2:TerminateInstances'
-                - 'ec2:DeleteTags'
-                - 'lambda:InvokeFunction'
-                - 'ec2:CreateTags'
-                - 'ec2:CreateImage'
                 - 'ec2:RunInstances'
-                - 'inspector2:CreateFindingsReport'
+                - 'ec2:CreateTags'
+                - 'ec2:StartInstances'
+                - 'ec2:DeleteTags'
+                - 'ec2:CreateImage'
                 - 'ec2:CreateVolume'
                 - 'ec2:CreateNetworkInterface'
-                - 'inspector2:ListFindings'
-                - 'ec2:StartInstances'
                 - 'ec2:CreateSecurityGroup'
-                - 'inspector2:GetFindingsReportStatus'
                 - 'ec2:CreateSubnet'
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:volume/*'
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:subnet/*'
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:network-interface/*'
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:security-group/*'
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}::image/*'
+            - Sid: AllowInstanceStateStatus
+              Effect: Allow
+              Action:
                 - 'ec2:DescribeInstanceStatus'
-                - 'inspector2:CancelFindingsReport'
               Resource: '*'
+            - Sid: AllowInspectorActions
+              Effect: Allow
+              Action:
+                - 'inspector2:CreateFindingsReport'
+                - 'inspector2:ListFindings'
+                - 'inspector2:GetFindingsReportStatus'
+                - 'inspector2:CancelFindingsReport'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:inspector2:${AWS::Region}:${AWS::AccountId}:finding/*'
+            - Sid: AllowLambdaActions
+              Effect: Allow
+              Action:
+                - 'lambda:InvokeFunction'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*'
             - Sid: AllowS3KMSSNSPermissions
               Effect: Allow
               Action:
@@ -604,6 +680,34 @@ Resources:
                 - !Sub 'arn:${AWS::Partition}:s3:::${ReportsS3Bucket}'
                 - !Sub 'arn:${AWS::Partition}:s3:::${ReportsS3Bucket}/*'
   
+  SingleAMILambdaPolicy:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: Policy for retrieving the list of AMIs to be scanned
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+            - Sid: StartAMIScannerSF
+              Effect: Allow
+              Action:
+                - 'states:StartExecution'
+              Resource: !Sub 'arn:${AWS::Partition}:states:${AWS::Region}:${AWS::AccountId}:stateMachine:AMIScanner-Part1-LaunchEC2'
+            - Sid: AllowSNSPublish
+              Effect: Allow
+              Action:
+                - 'sns:Publish'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:sns:${AWS::Region}:${AWS::AccountId}:${SnsTopic}'
+
+  SingleAMILambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: "/service-role/"
+      RoleName: AMIScanner-Singleami-Lambdafunction-role
+      AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
+      ManagedPolicyArns:
+         - !Ref SingleAMILambdaPolicy
+
   TagAMILambdaPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
     Properties:
@@ -611,11 +715,18 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-            - Sid: AllowEC2Tagging
+            - Sid: AllowEC2ImageTagging
               Effect: Allow
               Action:
                 - 'ec2:CreateTags'
-              Resource: "*"
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}::image/*'
+            - Sid: AllowEC2InstanceTagging
+              Effect: Allow
+              Action:
+                - 'ec2:CreateTags'
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
             - Sid: AllowLogs  
               Effect: Allow
               Action:
@@ -628,7 +739,7 @@ Resources:
                 - 'logs:CreateLogStream'
                 - 'logs:PutLogEvents'
               Resource: 
-                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/Tag-AMI-Scanner:*'
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-TagAMI:*'
 
   InvokeStateMachineEventbridgePolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -665,7 +776,20 @@ Resources:
                 Action:
                   - 'lambda:InvokeFunction'
                 Resource: 
-                - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:lambda:Get-AMI-Scanner'
+                - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:lambda:AMIScanner-GetAMIs'
+              - Sid: AllowLogs  
+                Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                Resource: 
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+              - Sid: AllowLogStreams
+                Effect: Allow
+                Action:
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                Resource: 
+                  - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-GetAMIs:*'
 
   AMIScannerInvokeScheduledGetAMIRole:
       Type: AWS::IAM::Role
@@ -697,12 +821,26 @@ Resources:
               Action:
                 - 'events:PutTargets'
                 - 'events:PutRule'
-              Resource: "*"
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*'
             - Sid: AllowPassRole
               Effect: Allow
               Action:
                 - 'iam:PassRole'
               Resource: !Sub 'arn:${AWS::Partition}:iam::${AWS::AccountId}:role/service-role/AMIScanner-InvokeStateMachineEB-role'
+            - Sid: AllowLogs  
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-CreateEBRule:*'
 
   CleanupEBRuleLambdaFunctionRole:
       Type: AWS::IAM::Role
@@ -725,7 +863,21 @@ Resources:
               Action:
                 - 'events:DeleteRule'
                 - 'events:RemoveTargets'
-              Resource: "*"
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/*'
+            - Sid: AllowLogs  
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-CleanupEBRule:*'
 
   InspectorFindingsLambdaFunctionRole:
       Type: AWS::IAM::Role
@@ -743,12 +895,18 @@ Resources:
       PolicyDocument:
         Version: "2012-10-17"
         Statement:
-            - Sid: Allowinvokefunctioncreatefindingsreport
+            - Sid: AllowInvokefunction
               Effect: Allow
               Action:
                 - 'lambda:InvokeFunction'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:lambda:${AWS::Region}:${AWS::AccountId}:function:*'
+            - Sid: AllowCreatefindingsreport
+              Effect: Allow
+              Action:
                 - 'inspector2:CreateFindingsReport'
-              Resource: "*"
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:inspector2:${AWS::Region}:${AWS::AccountId}:*'
             - Sid: AllowS3access
               Effect: Allow
               Action: 
@@ -765,7 +923,20 @@ Resources:
               Action: 
                 - 'kms:GetKeyPolicy'
               Resource: 
-                - !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:key/60e1dcb3-f965-402d-bdad-cb85391c5a07'
+                - !Sub 'arn:${AWS::Partition}:kms:${AWS::Region}:${AWS::AccountId}:alias/amiscanner-kmskey-alias'
+            - Sid: AllowLogs  
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-InspectorFindingsReport:*'
 
   TerminateEC2LambdaFunctionPolicy:
     Type: 'AWS::IAM::ManagedPolicy'
@@ -778,7 +949,21 @@ Resources:
               Effect: Allow
               Action:
                 - 'ec2:TerminateInstances'
-              Resource: "*"
+              Resource:
+                - !Sub 'arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/*'
+            - Sid: AllowLogs  
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogGroup'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*'
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-TerminateEC2:*'
     
   TerminateEC2LambdaFunctionRole:
       Type: AWS::IAM::Role
@@ -802,7 +987,7 @@ Resources:
     Type: AWS::IAM::Role
     Properties:
       Path: "/service-role/"
-      RoleName: tag-ami-lambdafunction-role
+      RoleName: AMIScanner-TagAMI-Lambdafunction-role
       AssumeRolePolicyDocument: "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Principal\":{\"Service\":\"lambda.amazonaws.com\"},\"Action\":\"sts:AssumeRole\"}]}"
       ManagedPolicyArns:
          - !Ref TagAMILambdaPolicy
@@ -859,6 +1044,7 @@ Resources:
     Type: AWS::KMS::Key
     Properties:
       Enabled: true
+      EnableKeyRotation: true
       KeyUsage: ENCRYPT_DECRYPT
       KeyPolicy:
         Version: '2012-10-17'
@@ -928,15 +1114,20 @@ Resources:
             - Sid: GetAMITags
               Effect: Allow
               Action:
-                - 'ec2:CreateTags'
                 - 'ec2:DescribeImages'
                 - 'ec2:DescribeInstances'
                 - 'ec2:DescribeTags'
                 - 'ec2:DescribeImageAttribute'
-                - 'logs:*'
                 - 'ec2:DescribeInstanceTypes'
                 - 'ec2:DescribeInstanceStatus'
               Resource: "*"
+            - Sid: AllowLogStreams
+              Effect: Allow
+              Action:
+                - 'logs:CreateLogStream'
+                - 'logs:PutLogEvents'
+              Resource: 
+                - !Sub 'arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/AMIScanner-GetAMIs:*'
             - Sid: StartAMIScannerSF
               Effect: Allow
               Action:
@@ -965,7 +1156,7 @@ Resources:
       EventBusName: "default"
       Name: "AMIScanner-ScheduledSolutionTask"
       ScheduleExpression: "cron(0 1 ? * 1 *)"
-      State: "ENABLED"
+      State: "DISABLED"
       Targets: 
         - Id: "GetAMILambdaFunction"
           Arn: 
