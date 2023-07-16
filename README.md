@@ -94,15 +94,15 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 The first Step Functions state machine requires parameters to be passed in; the SingleAMI Lambda function accomplishes this. You can start the Lambda function by creating a test event and passing the correct JSON text and parameters. 
             
 The following parameters are available in the output section of the CloudFormation stack that the solution deployed:
-    •	AmiId – The ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
-    •	EC2InstanceProfile – The Amazon Resource Name (ARN) of the EC2 instance profile that the CloudFormation stack created.
-    •	InstanceType – The type of EC2 instance to use for deployment. 
-    •	KmsKeyName – The ARN of the KMS key to be used for encrypting and decrypting the Amazon Inspector report that the CloudFormation stack created.
-    •	S3Bucket – The name of the S3 bucket to which the Amazon Inspector reports will be exported. The S3 bucket was created previously by the CloudFormation stack.
-    •	S3ReportFormat – The report format that Amazon Inspector will use to export the findings report; either the JSON or the CSV format is valid.
-    •	SnsTopc – The ARN of the SNS topic to which notifications will be sent. This SNS topic was created previously by the CloudFormation stack.
-    •	StateMachineArn – The ARN of the first Step Functions state machine, which the Lambda function will run first.
-    •	SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
+    AmiId – The ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
+    EC2InstanceProfile – The Amazon Resource Name (ARN) of the EC2 instance profile that the CloudFormation stack created.
+    InstanceType – The type of EC2 instance to use for deployment. 
+    KmsKeyName – The ARN of the KMS key to be used for encrypting and decrypting the Amazon Inspector report that the CloudFormation stack created.
+    S3Bucket – The name of the S3 bucket to which the Amazon Inspector reports will be exported. The S3 bucket was created previously by the CloudFormation stack.
+    S3ReportFormat – The report format that Amazon Inspector will use to export the findings report; either the JSON or the CSV format is valid.
+    SnsTopc – The ARN of the SNS topic to which notifications will be sent. This SNS topic was created previously by the CloudFormation stack.
+    StateMachineArn – The ARN of the first Step Functions state machine, which the Lambda function will run first.
+    SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
 ```json
