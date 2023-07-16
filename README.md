@@ -74,14 +74,14 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account. Note that the stack will launch in the N. Virginia (us-east-1) Region. To deploy this solution into other AWS Regions, download the solution’s CloudFormation template, modify it, and deploy it to the selected Region. Make sure that you configure the following parameters in the CloudFormation template so that it deploys successfully:
             
-        •	AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
-        •	AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
-        •	InspectorReportFormat – the report format, which can be either CSV or JSON
-        •	InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
-        •	InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
-        •	KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
-        •	S3ReportBucketName – the name of the S3 bucket to be created 
-        •	SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
+1. AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
+2. AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
+3. InspectorReportFormat – the report format, which can be either CSV or JSON
+4. InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
+5. InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
+6. KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
+7. S3ReportBucketName – the name of the S3 bucket to be created 
+8. SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
 
 2.	Review the stack name and the parameters for the template. 
 3.	On the Quick create stack screen, scroll to the bottom and select I acknowledge that AWS CloudFormation might create IAM resources.
