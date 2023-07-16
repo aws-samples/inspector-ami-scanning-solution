@@ -9,7 +9,7 @@ Scheduled-Multi-AMI-Scanner CloudFormation Template - used for fetching AMI's to
 The solution requires that you activate Amazon Inspector in your AWS account - https://docs.aws.amazon.com/inspector/latest/user/getting_started_tutorial.html
 This can alternatively be achieved by using the AWS Command Line Interface (CLI) https://aws.amazon.com/cli/ and this GitHub example https://github.com/aws-samples/inspector2-enablement-with-cli. 
 
-#### AMI
+#### Supported AMI
 Make sure that the AMI to be scanned by Amazon Inspector is based from one of the operating systems that AWS supports (https://docs.aws.amazon.com/inspector/latest/user/supported.html#supported-os-ec2) for EC2 scanning.
 
 #### AWS Systems Manager SSM Agent
@@ -35,9 +35,7 @@ If you use customer managed keys to encrypt Amazon Elastic Block Store (Amazon E
 If you don't add this additional policy, the Step Functions state machine won’t allow the EC2 instances to launch. More info - https://docs.aws.amazon.com/autoscaling/ec2/userguide/key-policy-requirements-EBS-encryption.html#policy-example-cmk-access
 
 
-## Solution Architecture Overviews
-
-### Multi-AMI Scheduled Scanner Solution
+## Solution Architecture Overview
 
 ![Multiple AMI Scanning - Solution Overview drawio](https://github.com/aws-samples/inspector-ami-scanning-solution/assets/102709027/cbad18d5-c4ad-4338-83a4-b02f2e80039e)
 
@@ -76,23 +74,14 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account. Note that the stack will launch in the N. Virginia (us-east-1) Region. To deploy this solution into other AWS Regions, download the solution’s CloudFormation template, modify it, and deploy it to the selected Region. Make sure that you configure the following parameters in the CloudFormation template so that it deploys successfully:
             
-•	AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
-            
-•	AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
-            
-•	InspectorReportFormat – the report format, which can be either CSV or JSON
-            
-•	InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
-            
-            
-•	InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
-            
-•	KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
-            
-•	S3ReportBucketName – the name of the S3 bucket to be created 
-            
-•	SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
-            
+        •	AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
+        •	AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
+        •	InspectorReportFormat – the report format, which can be either CSV or JSON
+        •	InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
+        •	InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
+        •	KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
+        •	S3ReportBucketName – the name of the S3 bucket to be created 
+        •	SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
 
 2.	Review the stack name and the parameters for the template. 
 3.	On the Quick create stack screen, scroll to the bottom and select I acknowledge that AWS CloudFormation might create IAM resources.
@@ -104,15 +93,16 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 The first Step Functions state machine requires parameters to be passed in; the SingleAMI Lambda function accomplishes this. You can start the Lambda function by creating a test event and passing the correct JSON text and parameters. 
             
 The following parameters are available in the output section of the CloudFormation stack that the solution deployed:
-•	AmiId – The ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
-•	EC2InstanceProfile – The Amazon Resource Name (ARN) of the EC2 instance profile that the CloudFormation stack created.
-•	InstanceType – The type of EC2 instance to use for deployment. 
-•	KmsKeyName – The ARN of the KMS key to be used for encrypting and decrypting the Amazon Inspector report that the CloudFormation stack created.
-•	S3Bucket – The name of the S3 bucket to which the Amazon Inspector reports will be exported. The S3 bucket was created previously by the CloudFormation stack.
-•	S3ReportFormat – The report format that Amazon Inspector will use to export the findings report; either the JSON or the CSV format is valid.
-•	SnsTopc – The ARN of the SNS topic to which notifications will be sent. This SNS topic was created previously by the CloudFormation stack.
-•	StateMachineArn – The ARN of the first Step Functions state machine, which the Lambda function will run first.
-•	SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
+        •	AmiId – The ID of the AMI to be used for deploying the EC2 instance. This is the EC2 AMI to be scanned.
+        •	EC2InstanceProfile – The Amazon Resource Name (ARN) of the EC2 instance profile that the CloudFormation stack created.
+        •	InstanceType – The type of EC2 instance to use for deployment. 
+        •	KmsKeyName – The ARN of the KMS key to be used for encrypting and decrypting the Amazon Inspector report that the CloudFormation stack created.
+        •	S3Bucket – The name of the S3 bucket to which the Amazon Inspector reports will be exported. The S3 bucket was created previously by the CloudFormation stack.
+        •	S3ReportFormat – The report format that Amazon Inspector will use to export the findings report; either the JSON or the CSV format is valid.
+        •	SnsTopc – The ARN of the SNS topic to which notifications will be sent. This SNS topic was created previously by the CloudFormation stack.
+        •	StateMachineArn – The ARN of the first Step Functions state machine, which the Lambda function will run first.
+        •	SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
+
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
                     {
                     "AmiId" : "<AMI-ABCDEF01234567890>",
