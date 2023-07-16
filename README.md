@@ -104,6 +104,7 @@ The following parameters are available in the output section of the CloudFormati
         •	SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
+```json
             {
             "AmiId" : "<AMI-ABCDEF01234567890>",
             "Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
@@ -115,6 +116,7 @@ The following is an example parameter configuration and JSON that you can use to
             "StateMachine": "arn:aws:states:region-name: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
             "SubnetId" : "<SUBNET-ABCDEF01234567890>"
             }
+```
 
 ## Security
 
