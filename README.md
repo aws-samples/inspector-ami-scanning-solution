@@ -140,7 +140,7 @@ The following is an example parameter configuration and JSON that you can use to
 #### Enabled Scheduled Scanning
 You can enable the EventBridge scheduled rule to handle multiple AMIs and automatic scheduling. The scheduled rule invokes a Lambda function on a scheduled basis that identifies AMIs with the appropriate tags and passes parameters to the Step Functions workflow. 
 
-•	In the EventBridge rules console, navigate to AMIScanner-ScheduledSolutionTask, and choose Enable.
+In the EventBridge rules console, navigate to AMIScanner-ScheduledSolutionTask, and choose Enable.
 
 ## Security
 
