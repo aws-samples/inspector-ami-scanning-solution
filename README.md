@@ -74,7 +74,8 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
 
 1.	Choose the following Launch Stack button to launch a CloudFormation stack in your account. Note that the stack will launch in the N. Virginia (us-east-1) Region. To deploy this solution into other AWS Regions, download the solution’s CloudFormation template, modify it, and deploy it to the selected Region. Make sure that you configure the following parameters in the CloudFormation template so that it deploys successfully:
             
-##### AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
+
+    AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
     AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
     InspectorReportFormat – the report format, which can be either CSV or JSON
     InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
