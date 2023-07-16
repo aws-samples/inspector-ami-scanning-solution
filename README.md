@@ -76,13 +76,21 @@ Make sure you deploy the CloudFormation template provided for Multi-AMI Scanning
             
 
     AMITagName – the AMI tag name to check if the AMI should be scanned by Amazon Inspector
+
     AMITagValue – the AMI tag value to check if the AMI should be scanned by Amazon Inspector
+    
     InspectorReportFormat – the report format, which can be either CSV or JSON
+    
     InstanceSubnetID – the subnet ID to launch the temporary EC2 instance into
+    
     InstanceType – the instance type to deploy the AMI to for temporary scanning purposes 
+    
     KmsKeyAdministratorRole – the existing IAM role that needs to have administrator access to the KMS key created that provides access to encrypt and decrypt the Amazon Inspector report
+
     S3ReportBucketName – the name of the S3 bucket to be created 
+
     SnsTopic – the name of the new SNS topic to be created; defines the SNS topic that notifications are published to 
+    
 
 2.	Review the stack name and the parameters for the template. 
 3.	On the Quick create stack screen, scroll to the bottom and select I acknowledge that AWS CloudFormation might create IAM resources.
