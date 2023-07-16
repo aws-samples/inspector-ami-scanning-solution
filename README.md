@@ -120,7 +120,7 @@ The following parameters are available in the output section of the CloudFormati
     StateMachineArn – The ARN of the first Step Functions state machine, which the Lambda function will run first.
 
     SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
-    
+
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
 ```json
@@ -136,6 +136,11 @@ The following is an example parameter configuration and JSON that you can use to
             "SubnetId" : "<SUBNET-ABCDEF01234567890>"
             }
 ```
+
+#### Enabled Scheduled Scanning
+You can enable the EventBridge scheduled rule to handle multiple AMIs and automatic scheduling. The scheduled rule invokes a Lambda function on a scheduled basis that identifies AMIs with the appropriate tags and passes parameters to the Step Functions workflow. 
+
+•	In the EventBridge rules console, navigate to AMIScanner-ScheduledSolutionTask, and choose Enable.
 
 ## Security
 
