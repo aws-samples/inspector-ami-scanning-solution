@@ -104,17 +104,17 @@ The following parameters are available in the output section of the CloudFormati
         •	SubnetId – The ID of the VPC subnet to which the EC2 instance will be attached and launched into. This is a required parameter and could be a subnet that is created specifically for this scanning purpose.
 
 The following is an example parameter configuration and JSON that you can use to run the Lambda function. Make sure to replace each <user input placeholder> with your own information. 
-                    {
-                    "AmiId" : "<AMI-ABCDEF01234567890>",
-                    "Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
-                    “InstanceType" : "t3.medium",
-                    "KmsKeyName" : "arn:aws:kms:region-name: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>",
-                    "S3Bucket" : "<DOC-EXAMPLE-BUCKET-111122223333>",
-                    "S3ReportFormat" : "CSV",
-                    "SnsTopic" : "arn:aws:sns:region-name-2: <111122223333>:InspectorScanner",
-                    "StateMachine": "arn:aws:states:region-name: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
-                    "SubnetId" : "<SUBNET-ABCDEF01234567890>"
-                    }
+            {
+            "AmiId" : "<AMI-ABCDEF01234567890>",
+            "Ec2InstanceProfile" : "arn:aws:iam:: <111122223333>:instance-profile/Ec2InstanceLaunchRole",
+            “InstanceType" : "t3.medium",
+            "KmsKeyName" : "arn:aws:kms:region-name: <111122223333>:key/<a1b2c3d4-5678-90ab-cdef-EXAMPLE11111>",
+            "S3Bucket" : "<DOC-EXAMPLE-BUCKET-111122223333>",
+            "S3ReportFormat" : "CSV",
+            "SnsTopic" : "arn:aws:sns:region-name-2: <111122223333>:InspectorScanner",
+            "StateMachine": "arn:aws:states:region-name: <111122223333>:stateMachine:AMIScanner-Part1-LaunchEC2",
+            "SubnetId" : "<SUBNET-ABCDEF01234567890>"
+            }
 
 ## Security
 
