@@ -295,7 +295,7 @@ Resources:
 
                 def lambda_handler(event, context):
                     INSTANCE_TYPE=event['InstanceType']
-                    KMSKEY_NAME=event['KmsKeyName']
+                    KMSKEY_NAME=event['KMSKeyName']
                     SUBNET_ID=event['SubnetId']
                     INSPECTOR_S3BUCKET=event['S3Bucket']
                     AMI_SCANNED=event['AmiId']
@@ -313,7 +313,7 @@ Resources:
                               'Ec2InstanceProfile' : INSTANCE_PROFILEARN,
                               'S3Bucket' : INSPECTOR_S3BUCKET,
                               'S3ReportFormat' : INSPECTOR_REPORTFORMAT,
-                              'KmsKeyName' : KMSKEY_NAME,
+                              'KMSKeyName' : KMSKEY_NAME,
                               'SnsTopic' : SNS_TOPICNAME
                               }
                         response = stepFunction.start_execution(stateMachineArn=STATE_MACHINE,input = json.dumps(input_dict))  
@@ -1197,6 +1197,10 @@ Outputs:
   EC2InstanceProfile:
     Description: The ARN of the EC2 instance profile
     Value: !GetAtt EC2InstanceProfile.Arn
+  
+  StateMachineArn:
+    Description: The ARN of the first Step Functions State Machine
+    Value: !GetAtt Part1StepFunctionsStateMachine.Arn
     
   S3Bucket: 
     Description: The bucket name where the Inspector reports will be exported
